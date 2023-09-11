@@ -1,0 +1,273 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum DepoType {
+  Main
+  Sub
+}
+
+enum SectsType {
+  A
+  B
+}
+
+enum ComponentType {
+  t1
+  t2
+  t3
+  t4
+  t5
+  t6
+}
+
+enum UserRoleType {
+  Admin
+  Director
+  Accountant
+  Repair
+  Passport
+}
+
+enum Status {
+  InUse
+  Deleted
+}
+
+enum ComponentChange {
+  Removed
+  Placed
+}
+
+enum StationType {
+  Division
+  Technical
+}
+
+enum RegisterStatus {
+  Registered
+  EmailVerified
+  EmployeeVerified
+  Disabled
+}
+
+model User {
+  id             Int            @id @default(autoincrement())
+  firstName      String?        @db.VarChar(60)
+  lastName       String?        @db.VarChar(60)
+  email          String         @unique
+  password       String
+  depoId         Int?
+  Depo           Depo?          @relation(fields: [depoId], references: [id])
+  hireDate       DateTime       @default(now())
+  fireDate       DateTime?
+  lastLogin      DateTime       @default(now())
+  UserRoleType   UserRoleType   @default(Repair)
+  registerStatus RegisterStatus @default(Registered)
+  code           String         @db.VarChar(4)
+  codeDate       DateTime
+
+  status    Status   @default(InUse)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  LocomotiveInserted       Locomotive[]       @relation("userInserted")
+  LocomotiveUpdated        Locomotive[]       @relation("userUpdated")
+  SeriComponentInserted    SeriComponent[]    @relation("userInsertedComponent")
+  SeriComponentUpdated     SeriComponent[]    @relation("userUpdatedComponent")
+  ComponentInserted        Component[]        @relation("insUserComp")
+  ComponentUpdated         Component[]        @relation("updUserComp")
+  LocomotiveRunInserted    LocomotiveRun[]    @relation("insUserLocRun")
+  LocomotiveRunUpdated     LocomotiveRun[]    @relation("updUserLocRun")
+  ComponentHistoryInserted ComponentHistory[] @relation("insUserHistory")
+  ComponentHistoryUpdated  ComponentHistory[] @relation("updUserHistory")
+  SeriRepairInserted       SeriRepair[]       @relation("userInsertedSeriRepair")
+  SeriRepairUpdated        SeriRepair[]       @relation("userUpdatedSeriRepair")
+}
+
+model Depo {
+  id        Int      @id
+  name      String
+  shortName String?  @db.VarChar(10)
+  stationId Int
+  Stations  Stations @relation(fields: [stationId], references: [stationCode])
+  bossName  String
+  type      DepoType @default(Main)
+  status    Status   @default(InUse)
+  mainId    Int?
+  Main      Depo?    @relation("mainDepo", fields: [mainId], references: [id])
+  Subs      Depo[]   @relation("mainDepo")
+
+  Locomotives      Locomotive[]
+  User             User[]
+  ComponentHistory ComponentHistory[]
+}
+
+model LocomotiveSeri {
+  id              Int             @id @default(autoincrement())
+  name            String          @unique
+  sectsNum        Int
+  locomotivePower Int
+  pairWheels      Int
+  cylinders       Int
+  status          Status          @default(InUse)
+  SeriComponents  SeriComponent[]
+  Locomotives     Locomotive[]
+  SeriRepair      SeriRepair[]
+}
+
+model Locomotive {
+  id       Int            @id @default(autoincrement())
+  seriId   Int
+  Seri     LocomotiveSeri @relation(fields: [seriId], references: [id])
+  number   String         @db.VarChar(10)
+  depoId   Int
+  Depo     Depo           @relation(fields: [depoId], references: [id])
+  sects    SectsType
+  useDate  DateTime
+  outDate  DateTime?
+  befRunKm Int
+
+  userInsertedId Int?
+  UserInserted   User? @relation("userInserted", fields: [userInsertedId], references: [id])
+  userUpdatedId  Int?
+  UserUpdated    User? @relation("userUpdated", fields: [userUpdatedId], references: [id])
+
+  status           Status             @default(InUse)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime?          @updatedAt
+  LocomotiveRun    LocomotiveRun[]
+  ComponentHistory ComponentHistory[]
+
+  @@unique([seriId, number, sects])
+}
+
+model SeriComponent {
+  id             Int            @id @default(autoincrement())
+  locomotiveSeri Int
+  LocomotiveSeri LocomotiveSeri @relation(fields: [locomotiveSeri], references: [id])
+  nameMn         String
+  nameRu         String
+  type           ComponentType
+  barCode        String         @unique @db.VarChar(60)
+
+  userInsertedId Int?
+  UserInserted   User? @relation("userInsertedComponent", fields: [userInsertedId], references: [id])
+  userUpdatedId  Int?
+  UserUpdated    User? @relation("userUpdatedComponent", fields: [userUpdatedId], references: [id])
+
+  status    Status      @default(InUse)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime?   @updatedAt
+  Component Component[]
+}
+
+model Component {
+  id              Int           @id @default(autoincrement())
+  number          String        @unique
+  seriComponentId Int
+  SeriComponent   SeriComponent @relation(fields: [seriComponentId], references: [id])
+  name            String        @db.VarChar(128)
+  useDate         DateTime
+  actedDate       DateTime?
+  runKm           Int
+
+  status    Status    @default(InUse)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+
+  userInsertedId   Int?
+  UserInserted     User?              @relation("insUserComp", fields: [userInsertedId], references: [id])
+  userUpdatedId    Int?
+  UserUpdated      User?              @relation("updUserComp", fields: [userUpdatedId], references: [id])
+  ComponentHistory ComponentHistory[]
+}
+
+model LocomotiveRun {
+  id             Int        @id @default(autoincrement())
+  locomotiveId   Int
+  Locomotive     Locomotive @relation(fields: [locomotiveId], references: [id])
+  seriRepairId   Int
+  SeriRepair     SeriRepair @relation(fields: [seriRepairId], references: [id])
+  repairDate     DateTime
+  runKm          Int        @default(0)
+  begRun         Int        @default(0)
+  freeze         Boolean    @default(false)
+  userInsertedId Int?
+  UserInserted   User?      @relation("insUserLocRun", fields: [userInsertedId], references: [id])
+  userUpdatedId  Int?
+  UserUpdated    User?      @relation("updUserLocRun", fields: [userUpdatedId], references: [id])
+}
+
+model ComponentHistory {
+  id             Int             @id @default(autoincrement())
+  componentId    Int
+  Component      Component       @relation(fields: [componentId], references: [id])
+  locomotiveId   Int
+  Locomotive     Locomotive      @relation(fields: [locomotiveId], references: [id])
+  seriRepairId   Int
+  SeriRepair     SeriRepair      @relation(fields: [seriRepairId], references: [id])
+  componentDate  DateTime
+  runKm          Int             @default(0)
+  depoId         Int
+  Depo           Depo            @relation(fields: [depoId], references: [id])
+  status         Status          @default(InUse)
+  type           ComponentChange @default(Placed)
+  reason         String?         @db.VarChar(128)
+  respondent     String?         @db.VarChar(60)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime?       @updatedAt
+  userInsertedId Int?
+  UserInserted   User?           @relation("insUserHistory", fields: [userInsertedId], references: [id])
+  userUpdatedId  Int?
+  UserUpdated    User?           @relation("updUserHistory", fields: [userUpdatedId], references: [id])
+}
+
+model SeriRepair {
+  id             Int            @id @default(autoincrement())
+  locomotiveSeri Int
+  LocomotiveSeri LocomotiveSeri @relation(fields: [locomotiveSeri], references: [id])
+  repairNumber   Int
+  repairName     String
+  shortName      String         @db.VarChar(15)
+  respondent     String?
+  repairRate     Int
+  stopMinute     Int
+  priority       Int
+  runBoolean     Boolean
+  repairType     Int
+
+  status    Status    @default(InUse)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+
+  userInsertedId   Int?
+  UserInserted     User?              @relation("userInsertedSeriRepair", fields: [userInsertedId], references: [id])
+  userUpdatedId    Int?
+  UserUpdated      User?              @relation("userUpdatedSeriRepair", fields: [userUpdatedId], references: [id])
+  ComponentHistory ComponentHistory[]
+  LocomotiveRun    LocomotiveRun[]
+
+  @@unique([locomotiveSeri, repairNumber])
+}
+
+model Stations {
+  stationCode    Int         @id
+  wayCode        Int
+  stationName    String      @db.VarChar(50)
+  shortName      String      @db.VarChar(10)
+  stationKm      Int
+  stationType    StationType
+  stationOwnId   Int
+  stationChildId Int
+  stationOwnKm   Int
+  railCode       Int
+  Depo           Depo[]
+
+  @@unique([stationOwnId, stationChildId])
+}
